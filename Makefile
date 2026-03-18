@@ -6,10 +6,13 @@ DOCKER_IMAGE := clawdos-builder
 .PHONY: iso docker-build-env test lint clean qemu qemu-gui
 
 iso: docker-build-env
+	@mkdir -p "$(CURDIR)/$(OUTPUT_DIR)"
 	docker run --rm \
 		-v "$(CURDIR)":/build \
 		-v "$(CURDIR)/$(OUTPUT_DIR)":/build/$(OUTPUT_DIR) \
 		--privileged \
+		--user root \
+		-e HOME=/home/builder \
 		$(DOCKER_IMAGE) \
 		/build/build/build.sh
 
