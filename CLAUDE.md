@@ -12,6 +12,34 @@ make qemu         # Boot ISO headless (serial console)
 make qemu-gui     # Boot ISO with display
 ```
 
+## Dev Quick Start
+
+**Prerequisites:** Docker, Make, (optional) QEMU for local boot testing, shellcheck for linting
+
+**Typical dev loop:**
+
+1. Edit files in `rootfs/` (full target path, e.g. `rootfs/usr/local/bin/clawdos-launcher`)
+2. `make test` — runs overlay, shellcheck, and build validation tests
+3. `make iso` — builds the ISO via Docker
+4. `make qemu` — boots the ISO headless (serial console)
+
+**Quick tests without ISO build:**
+
+```bash
+bash tests/test_overlay.sh        # Run overlay tests standalone
+shellcheck -x rootfs/usr/local/bin/*  # Lint scripts directly
+```
+
+**Adding files to the image:** Place them in `rootfs/` mirroring the target filesystem path. If custom permissions are needed, add `chmod`/`chown` lines in `build/genapkovl-clawdos.sh`.
+
+**Adding packages:** Edit the `apks` variable in `build/mkimg.clawdos.sh`.
+
+**Debugging in QEMU:**
+
+- `make qemu` — serial console on tty1 (Claude Code)
+- `Ctrl+Alt+F2` — emergency shell (password-protected)
+- `Ctrl+Alt+F3` — live log tail (`/var/log/messages`)
+
 ## Project Structure
 
 ```
