@@ -41,7 +41,7 @@ echo "[4/4] Finalizing..."
 cd "$OUTPUT_DIR"
 
 # Find the generated ISO
-ISO_FILE=$(ls -1 alpine-clawdos-*.iso 2>/dev/null | head -1)
+ISO_FILE=$(find . -maxdepth 1 -name 'alpine-clawdos-*.iso' -print -quit)
 if [ -z "$ISO_FILE" ]; then
     echo "ERROR: No ISO file found in $OUTPUT_DIR" >&2
     exit 1

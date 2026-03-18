@@ -46,7 +46,7 @@ if [ ${#scripts[@]} -eq 0 ]; then
 fi
 
 for script in "${scripts[@]}"; do
-    name="${script#$PROJECT_DIR/}"
+    name="${script#"$PROJECT_DIR"/}"
     if shellcheck -x "$script" 2>&1; then
         echo "  PASS: $name"
         PASS=$((PASS + 1))

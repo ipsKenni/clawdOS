@@ -72,10 +72,10 @@ spinner() {
 
 # ── Particle effect ─────────────────────────────────────────────
 sparkle_field() {
-    local rows=${1:-5} cols=${2:-60} frames=${3:-8}
+    local rows=${1:-5} cols=${2:-60} num_frames=${3:-8}
     local chars=('·' '✦' '✧' '⊹' '.' '✵' '+' '⁺' '*')
 
-    for (( f=0; f<frames; f++ )); do
+    for (( f=0; f<num_frames; f++ )); do
         for (( r=0; r<rows; r++ )); do
             printf "  "
             for (( c=0; c<cols; c++ )); do
