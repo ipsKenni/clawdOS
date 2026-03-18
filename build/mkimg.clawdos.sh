@@ -16,7 +16,6 @@ profile_clawdos() {
         alpine-base
         openrc
         busybox
-        busybox-initscripts
     "
 
     # Networking
