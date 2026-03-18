@@ -1,0 +1,235 @@
+#!/bin/bash
+# clawdOS Boot Animation - An animated boot splash for the terminal
+# shellcheck disable=SC2034
+
+# ── Colors ──────────────────────────────────────────────────────
+RST='\033[0m'
+BOLD='\033[1m'
+DIM='\033[2m'
+# Orange/amber palette (Claude's color)
+C1='\033[38;5;208m'  # Bright orange
+C2='\033[38;5;214m'  # Gold
+C3='\033[38;5;220m'  # Yellow
+C4='\033[38;5;209m'  # Salmon
+C5='\033[38;5;166m'  # Dark orange
+C6='\033[38;5;255m'  # White
+C7='\033[38;5;240m'  # Gray
+C8='\033[38;5;245m'  # Light gray
+BG='\033[48;5;233m'  # Dark background
+
+# ── Terminal setup ──────────────────────────────────────────────
+hide_cursor() { printf '\033[?25l'; }
+show_cursor() { printf '\033[?25h'; }
+goto() { printf '\033[%d;%dH' "$1" "$2"; }
+clear_screen() { printf '\033[2J\033[H'; }
+
+trap 'show_cursor' EXIT
+
+# ── Helpers ─────────────────────────────────────────────────────
+type_text() {
+    local text="$1" delay="${2:-0.02}"
+    for (( i=0; i<${#text}; i++ )); do
+        printf '%s' "${text:$i:1}"
+        sleep "$delay"
+    done
+}
+
+progress_bar() {
+    local width=40 text="$1" duration="${2:-1.5}"
+    local steps=20
+    local step_delay
+    step_delay=$(echo "$duration / $steps" | bc -l 2>/dev/null || echo "0.07")
+
+    printf "  ${C7}%-30s ${C8}[" "$text"
+    for (( i=0; i<steps; i++ )); do
+        local filled=$(( (i + 1) * width / steps ))
+        local empty=$(( width - filled ))
+        printf '\r'
+        printf "  ${C7}%-30s ${C8}[" "$text"
+        printf "${C1}"
+        for (( j=0; j<filled; j++ )); do printf '█'; done
+        printf "${C7}"
+        for (( j=0; j<empty; j++ )); do printf '░'; done
+        printf "${C8}]${RST}"
+        sleep "$step_delay"
+    done
+    printf " ${C2}✓${RST}\n"
+}
+
+spinner() {
+    local text="$1" duration="${2:-2}"
+    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local end_time=$(( SECONDS + ${duration%.*} ))
+
+    while [ $SECONDS -lt $end_time ]; do
+        for frame in "${frames[@]}"; do
+            printf "\r  ${C1}%s${RST} ${C7}%s${RST}" "$frame" "$text"
+            sleep 0.08
+        done
+    done
+    printf "\r  ${C2}✓${RST} ${C7}%s${RST}\n" "$text"
+}
+
+# ── Particle effect ─────────────────────────────────────────────
+sparkle_field() {
+    local rows=${1:-5} cols=${2:-60} frames=${3:-8}
+    local chars=('·' '✦' '✧' '⊹' '.' '✵' '+' '⁺' '*')
+
+    for (( f=0; f<frames; f++ )); do
+        for (( r=0; r<rows; r++ )); do
+            printf "  "
+            for (( c=0; c<cols; c++ )); do
+                if (( RANDOM % 8 == 0 )); then
+                    local colors=("$C1" "$C2" "$C3" "$C4" "$C5")
+                    printf "${colors[$((RANDOM % 5))]}${chars[$((RANDOM % 9))]}${RST}"
+                else
+                    printf " "
+                fi
+            done
+            printf "\n"
+        done
+        sleep 0.12
+        # Move cursor back up
+        printf "\033[${rows}A"
+    done
+    # Clear the sparkle area
+    for (( r=0; r<rows; r++ )); do
+        printf "  %-${cols}s\n" ""
+    done
+    printf "\033[${rows}A"
+}
+
+# ── Claude Code Sparkle Logo ────────────────────────────────────
+animate_sparkle() {
+    # The Claude Code sparkle, built up piece by piece
+    local d=0.08
+
+    # Phase 1: Inner core appears
+    printf "                              ${C1}▐▛███▜▌${RST}\n"
+    sleep $d
+    printf "                             ${C1}▝▜█████▛▘${RST}\n"
+    sleep $d
+    printf "                               ${C1}▘▘ ▝▝${RST}\n"
+    sleep 0.2
+
+    # Move back up and redraw bigger with glow
+    printf "\033[3A"
+    printf "                              ${BOLD}${C2}▐▛███▜▌${RST}\n"
+    sleep $d
+    printf "                             ${BOLD}${C2}▝▜█████▛▘${RST}\n"
+    sleep $d
+    printf "                               ${BOLD}${C2}▘▘ ▝▝${RST}\n"
+    sleep 0.15
+
+    # Final sparkle burst around the logo
+    printf "\033[3A"
+    printf "                        ${C3}✦${RST}     ${BOLD}${C1}▐▛███▜▌${RST}     ${C3}✦${RST}\n"
+    sleep $d
+    printf "                     ${C4}·${RST}        ${BOLD}${C1}▝▜█████▛▘${RST}        ${C4}·${RST}\n"
+    sleep $d
+    printf "                        ${C3}✦${RST}       ${BOLD}${C1}▘▘ ▝▝${RST}       ${C3}✦${RST}\n"
+    sleep 0.3
+}
+
+# ── Main Logo ───────────────────────────────────────────────────
+show_logo() {
+    echo ""
+    echo ""
+
+    # Animate the Claude Code sparkle icon
+    animate_sparkle
+
+    echo ""
+
+    # clawdOS text logo - revealed line by line with color wave
+    local logo_lines=(
+        "  ${BOLD}${C1} ██████╗${C2}██╗      ${C3} █████╗ ${C4}██╗    ██╗${C5}██████╗  ${C1} ██████╗ ${C2}███████╗${RST}"
+        "  ${BOLD}${C1}██╔════╝${C2}██║      ${C3}██╔══██╗${C4}██║    ██║${C5}██╔══██╗ ${C1}██╔═══██╗${C2}██╔════╝${RST}"
+        "  ${BOLD}${C1}██║     ${C2}██║      ${C3}███████║${C4}██║ █╗ ██║${C5}██║  ██║ ${C1}██║   ██║${C2}███████╗${RST}"
+        "  ${BOLD}${C1}██║     ${C2}██║      ${C3}██╔══██║${C4}██║███╗██║${C5}██║  ██║ ${C1}██║   ██║${C2}╚════██║${RST}"
+        "  ${BOLD}${C1}╚██████╗${C2}███████╗${C3}██║  ██║${C4}╚███╔███╔╝${C5}██████╔╝ ${C1}╚██████╔╝${C2}███████║${RST}"
+        "  ${BOLD}${C1} ╚═════╝${C2}╚══════╝${C3}╚═╝  ╚═╝${C4} ╚══╝╚══╝ ${C5}╚═════╝  ${C1} ╚═════╝ ${C2}╚══════╝${RST}"
+    )
+
+    for line in "${logo_lines[@]}"; do
+        printf "  %b\n" "$line"
+        sleep 0.05
+    done
+
+    echo ""
+    printf "  ${DIM}${C8}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}\n"
+    printf "  ${C6}${BOLD}Your entire OS, powered by Claude Code.${RST}\n"
+    printf "  ${DIM}${C8}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}\n"
+    echo ""
+}
+
+# ── Boot Sequence Animation ─────────────────────────────────────
+boot_sequence() {
+    hide_cursor
+    clear_screen
+
+    # Quick sparkle before logo
+    sparkle_field 3 65 6
+
+    # Show main logo
+    show_logo
+
+    sleep 0.3
+
+    # System init progress bars
+    printf "  ${BOLD}${C6}System Initialization${RST}\n\n"
+
+    progress_bar "Loading kernel modules" 0.4
+    progress_bar "Starting OpenRC" 0.3
+    progress_bar "Configuring network (DHCP)" 0.6
+    progress_bar "Syncing system clock" 0.3
+    progress_bar "Preparing environment" 0.3
+
+    echo ""
+
+    # TTY info
+    printf "  ${C8}┌─────────────────────────────────────────────────────────────┐${RST}\n"
+    printf "  ${C8}│${RST}  ${C1}tty1${RST} Claude Code   ${C7}│${RST}  ${C4}tty2${RST} Emergency ${C7}(Ctrl+Alt+F2)${RST}  ${C8}│${RST}\n"
+    printf "  ${C8}│${RST}  ${C2}tty3${RST} System Logs ${C7}(Ctrl+Alt+F3)${RST}                          ${C8}│${RST}\n"
+    printf "  ${C8}└─────────────────────────────────────────────────────────────┘${RST}\n"
+    echo ""
+
+    show_cursor
+}
+
+# ── Minimal Banner (for respawn) ────────────────────────────────
+show_banner() {
+    printf "\n"
+    printf "              ${C1}▐▛███▜▌${RST}\n"
+    printf "             ${C1}▝▜█████▛▘${RST}\n"
+    printf "               ${C1}▘▘ ▝▝${RST}\n"
+    printf "\n"
+    printf "  ${C1}✦${RST} ${BOLD}${C6}clawdOS${RST} ${C7}— Your OS, powered by Claude Code${RST}\n"
+    printf "\n"
+}
+
+# ── Shutdown Animation ──────────────────────────────────────────
+shutdown_animation() {
+    hide_cursor
+    echo ""
+    printf "  ${C4}Claude Code session ended.${RST}\n"
+
+    local frames=('⣾' '⣽' '⣻' '⢿' '⡿' '⣟' '⣯' '⣷')
+    for i in 3 2 1; do
+        for frame in "${frames[@]}"; do
+            printf "\r  ${C1}%s${RST} ${C7}Restarting in %d...${RST}" "$frame" "$i"
+            sleep 0.1
+        done
+    done
+    printf "\r  ${C2}↻${RST} ${C7}Restarting now...     ${RST}\n"
+    show_cursor
+}
+
+# ── Entry point ─────────────────────────────────────────────────
+case "${1:-boot}" in
+    boot)     boot_sequence ;;
+    banner)   show_banner ;;
+    shutdown) shutdown_animation ;;
+    logo)     show_logo ;;
+    *)        boot_sequence ;;
+esac

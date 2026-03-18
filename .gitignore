@@ -1,0 +1,17 @@
+# Build output
+output/
+
+# ISO images
+*.iso
+
+# Release archives
+*.tar.gz
+
+# Checksums
+*.sha256
+
+# Cache
+.cache/
+
+# Temporary files
+tmp/

@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version from tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker environment
+        run: make docker-build-env
+
+      - name: Build ISO
+        run: VERSION=${{ env.VERSION }} make iso
+
+      - name: Validate ISO
+        run: bash tests/test_build.sh
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: clawdOS v${{ env.VERSION }}
+          body: |
+            ## clawdOS v${{ env.VERSION }}
+
+            ### Quick Start
+            1. Download the ISO below
+            2. Boot in a VM (VirtualBox, QEMU, VMware) or write to USB
+            3. Follow the first-boot setup wizard
+            4. Start using Claude Code as your OS!
+
+            ### Checksums
+            See `clawdos-${{ env.VERSION }}-x86_64.iso.sha256` for SHA-256 checksum.
+          files: |
+            output/clawdos-*.iso
+            output/clawdos-*.sha256
+          draft: false
+          prerelease: false

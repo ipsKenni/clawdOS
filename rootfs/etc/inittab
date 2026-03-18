@@ -1,0 +1,18 @@
+# clawdOS inittab
+::sysinit:/sbin/openrc sysinit
+::sysinit:/sbin/openrc boot
+::wait:/sbin/openrc default
+
+# tty1: Claude Code (main interface)
+tty1::respawn:/usr/local/bin/clawdos-launcher
+
+# tty2: Emergency shell (password-protected)
+tty2::respawn:/usr/local/bin/clawdos-emergency
+
+# tty3: Live system logs
+tty3::respawn:/usr/bin/tail -f /var/log/messages
+
+# Ctrl-Alt-Del
+::ctrlaltdel:/sbin/reboot
+
+::shutdown:/sbin/openrc shutdown

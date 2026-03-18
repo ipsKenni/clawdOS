@@ -1,0 +1,182 @@
+#!/bin/bash
+# clawdOS First-Boot Setup Wizard
+# shellcheck disable=SC1091
+set -euo pipefail
+
+CONFIG_DIR="/etc/clawdos"
+ENV_FILE="$CONFIG_DIR/env"
+CONFIGURED_MARKER="$CONFIG_DIR/configured"
+
+# ── Colors ──────────────────────────────────────────────────────
+RST='\033[0m'
+BOLD='\033[1m'
+DIM='\033[2m'
+C1='\033[38;5;208m'   # Orange
+C2='\033[38;5;214m'   # Gold
+C3='\033[38;5;220m'   # Yellow
+C6='\033[38;5;255m'   # White
+C7='\033[38;5;240m'   # Gray
+C8='\033[38;5;245m'   # Light gray
+GREEN='\033[38;5;114m'
+
+mkdir -p "$CONFIG_DIR"
+
+# ── Header ──────────────────────────────────────────────────────
+printf "\n"
+printf "  ${C1}╔══════════════════════════════════════════════════╗${RST}\n"
+printf "  ${C1}║${RST}  ${C2}✦${RST}  ${BOLD}${C6}clawdOS First-Boot Setup${RST}              ${C2}✦${RST}  ${C1}║${RST}\n"
+printf "  ${C1}╚══════════════════════════════════════════════════╝${RST}\n"
+printf "\n"
+
+step_header() {
+    local num="$1" total="$2" title="$3"
+    printf "  ${BOLD}${C1}[%s/%s]${RST} ${BOLD}${C6}%s${RST}\n" "$num" "$total" "$title"
+    printf "  ${C7}%s${RST}\n" "$(printf '%.0s─' {1..48})"
+}
+
+# ── Step 1: API Key ─────────────────────────────────────────────
+step_header 1 5 "Anthropic API Key"
+printf "  ${C8}Claude Code needs an API key to function.${RST}\n"
+printf "  ${C8}Get one at: ${C3}https://console.anthropic.com/settings/keys${RST}\n\n"
+
+while true; do
+    read -rp "  API Key: " api_key
+    if [ -z "$api_key" ]; then
+        printf "  ${C1}API key cannot be empty.${RST}\n"
+        continue
+    fi
+    if [[ "$api_key" == sk-ant-* ]]; then
+        printf "  ${GREEN}Key accepted.${RST}\n"
+        break
+    fi
+    printf "  ${C1}Warning: Key doesn't start with 'sk-ant-'.${RST}\n"
+    read -rp "  Use anyway? [y/N]: " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        break
+    fi
+done
+printf "\n"
+
+# ── Step 2: Timezone ────────────────────────────────────────────
+step_header 2 5 "Timezone"
+printf "  ${C8}Examples: UTC, Europe/Berlin, America/New_York, Asia/Tokyo${RST}\n\n"
+
+read -rp "  Timezone [UTC]: " timezone
+timezone="${timezone:-UTC}"
+if [ -f "/usr/share/zoneinfo/$timezone" ]; then
+    ln -sf "/usr/share/zoneinfo/$timezone" /etc/localtime
+    echo "$timezone" > /etc/timezone
+    printf "  ${GREEN}Timezone set to %s${RST}\n" "$timezone"
+else
+    printf "  ${C1}Unknown timezone '%s', keeping UTC${RST}\n" "$timezone"
+    timezone="UTC"
+fi
+printf "\n"
+
+# ── Step 3: Keyboard Layout ────────────────────────────────────
+step_header 3 5 "Keyboard Layout"
+printf "  ${C8}Examples: us, de, fr, gb, es${RST}\n\n"
+
+read -rp "  Layout [us]: " keymap
+keymap="${keymap:-us}"
+setup-keymap "$keymap" "$keymap" 2>/dev/null || printf "  ${C1}Could not set keymap '%s'${RST}\n" "$keymap"
+printf "\n"
+
+# ── Step 4: Persistent Storage ──────────────────────────────────
+step_header 4 5 "Persistent Storage (optional)"
+printf "  ${C8}Configure a disk to keep data across reboots.${RST}\n"
+printf "  ${C8}Available disks:${RST}\n"
+lsblk -d -o NAME,SIZE,TYPE 2>/dev/null | grep -v "loop\|sr\|rom" | sed "s/^/    /" || printf "    ${DIM}No disks detected${RST}\n"
+printf "\n"
+
+PERSIST_DEV=""
+read -rp "  Configure persistent storage? [y/N]: " persist
+if [[ "$persist" =~ ^[Yy]$ ]]; then
+    read -rp "  Device (e.g., /dev/sda1): " persist_dev
+    if [ -b "$persist_dev" ]; then
+        mkdir -p /mnt/persist
+        if ! mount "$persist_dev" /mnt/persist 2>/dev/null; then
+            printf "  ${C1}Cannot mount. Format as ext4?${RST}\n"
+            read -rp "  WARNING: This ERASES all data on $persist_dev! [y/N]: " format_confirm
+            if [[ "$format_confirm" =~ ^[Yy]$ ]]; then
+                mkfs.ext4 -F "$persist_dev"
+                mount "$persist_dev" /mnt/persist
+            fi
+        fi
+
+        if mountpoint -q /mnt/persist; then
+            mkdir -p /mnt/persist/.clawdos-config
+            mkdir -p /mnt/persist/home
+            printf "  ${GREEN}Persistent storage configured at %s${RST}\n" "$persist_dev"
+            PERSIST_DEV="$persist_dev"
+        fi
+    else
+        printf "  ${C1}Device not found: %s${RST}\n" "$persist_dev"
+    fi
+fi
+printf "\n"
+
+# ── Step 5: Emergency Shell Password ───────────────────────────
+step_header 5 5 "Emergency Shell Password"
+printf "  ${C8}Set a password for the rescue shell (tty2, Ctrl+Alt+F2).${RST}\n\n"
+
+while true; do
+    read -rsp "  Password: " emergency_pw
+    echo ""
+    read -rsp "  Confirm:  " emergency_pw2
+    echo ""
+    if [ "$emergency_pw" = "$emergency_pw2" ]; then
+        if [ -n "$emergency_pw" ]; then
+            printf "  ${GREEN}Password set.${RST}\n"
+            break
+        fi
+        printf "  ${C1}Password cannot be empty.${RST}\n"
+    else
+        printf "  ${C1}Passwords don't match. Try again.${RST}\n"
+    fi
+done
+printf "\n"
+
+# ── Write Configuration ────────────────────────────────────────
+printf "  ${C7}Writing configuration...${RST}\n"
+
+cat > "$ENV_FILE" << EOF
+# clawdOS configuration - generated by setup wizard
+ANTHROPIC_API_KEY=$api_key
+CLAWDOS_TIMEZONE=$timezone
+CLAWDOS_KEYMAP=$keymap
+EOF
+
+if [ -n "$PERSIST_DEV" ]; then
+    echo "CLAWDOS_PERSIST_DEV=$PERSIST_DEV" >> "$ENV_FILE"
+    echo "$PERSIST_DEV /mnt/persist ext4 defaults,noatime 0 2" >> /etc/fstab
+fi
+
+chmod 0600 "$ENV_FILE"
+
+# Store emergency password hash
+echo "$emergency_pw" | mkpasswd -m sha-512 -s > "$CONFIG_DIR/emergency_pw"
+chmod 0600 "$CONFIG_DIR/emergency_pw"
+
+# ── Install Claude Code ─────────────────────────────────────────
+printf "\n"
+printf "  ${BOLD}${C2}Installing Claude Code...${RST}\n"
+printf "  ${C8}This requires internet and may take a moment.${RST}\n\n"
+
+if curl -fsSL https://claude.ai/install.sh | bash; then
+    printf "\n  ${GREEN}Claude Code installed successfully!${RST}\n"
+else
+    printf "\n  ${C1}Could not install Claude Code.${RST}\n"
+    printf "  ${C8}It will be installed on next boot with network access.${RST}\n"
+fi
+
+touch "$CONFIGURED_MARKER"
+
+# ── Done ─────────────────────────────────────────────────────────
+printf "\n"
+printf "  ${C1}╔══════════════════════════════════════════════════╗${RST}\n"
+printf "  ${C1}║${RST}  ${GREEN}Setup complete!${RST}                                  ${C1}║${RST}\n"
+printf "  ${C1}║${RST}  ${C6}Launching Claude Code...${RST}                        ${C1}║${RST}\n"
+printf "  ${C1}╚══════════════════════════════════════════════════╝${RST}\n"
+printf "\n"
+sleep 2

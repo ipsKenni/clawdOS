@@ -1,0 +1,42 @@
+#!/sbin/openrc-run
+# Claude Code service for clawdOS
+
+description="Ensure Claude Code environment is ready"
+
+depend() {
+    need net
+    after networking dhcpcd
+}
+
+start_pre() {
+    # Ensure config directory exists
+    mkdir -p /etc/clawdos
+}
+
+start() {
+    ebegin "Preparing Claude Code environment"
+
+    # Load environment if configured
+    if [ -f "/etc/clawdos/env" ]; then
+        . /etc/clawdos/env
+    fi
+
+    # Check network connectivity
+    local retries=0
+    while [ $retries -lt 30 ]; do
+        if wget -q --spider https://api.anthropic.com 2>/dev/null; then
+            eend 0
+            return 0
+        fi
+        retries=$((retries + 1))
+        sleep 1
+    done
+
+    ewarn "Network not available - Claude Code may not work correctly"
+    eend 0
+}
+
+stop() {
+    ebegin "Stopping Claude Code environment"
+    eend 0
+}

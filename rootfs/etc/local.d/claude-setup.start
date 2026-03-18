@@ -1,0 +1,6 @@
+#!/bin/sh
+# clawdOS early setup
+# Ensure config directory exists
+mkdir -p /etc/clawdos
+# Ensure correct permissions on env file
+[ -f /etc/clawdos/env ] && chmod 0600 /etc/clawdos/env

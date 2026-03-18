@@ -1,0 +1,101 @@
+#!/bin/bash
+# clawdOS Launcher - Main entry point on tty1
+# shellcheck disable=SC1091
+set -euo pipefail
+
+CONFIGURED_MARKER="/etc/clawdos/configured"
+ENV_FILE="/etc/clawdos/env"
+BOOT_ANIMATION="/usr/local/bin/clawdos-boot-animation"
+FIRST_RUN_FILE="/tmp/.clawdos-first-run"
+
+# ── Colors (fallback if animation script unavailable) ───────────
+RST='\033[0m'
+BOLD='\033[1m'
+C1='\033[38;5;208m'
+C7='\033[38;5;240m'
+
+# ── Determine if this is a fresh boot or a respawn ──────────────
+is_fresh_boot() {
+    [ ! -f "$FIRST_RUN_FILE" ]
+}
+
+# ── Load environment ────────────────────────────────────────────
+load_env() {
+    if [ -f "$ENV_FILE" ]; then
+        set -a
+        source "$ENV_FILE"
+        set +a
+    fi
+}
+
+# ── Main ────────────────────────────────────────────────────────
+
+clear
+
+if is_fresh_boot; then
+    # First launch after power-on: full animated boot sequence
+    touch "$FIRST_RUN_FILE"
+    if [ -x "$BOOT_ANIMATION" ]; then
+        "$BOOT_ANIMATION" boot
+    fi
+else
+    # Respawn after Claude Code exit: minimal banner
+    if [ -x "$BOOT_ANIMATION" ]; then
+        "$BOOT_ANIMATION" banner
+    fi
+fi
+
+load_env
+
+# ── First-boot setup ───────────────────────────────────────────
+if [ ! -f "$CONFIGURED_MARKER" ]; then
+    echo ""
+    printf "  ${BOLD}${C1}Welcome to clawdOS!${RST} Starting first-boot setup...\n"
+    echo ""
+    sleep 1
+    /usr/local/bin/clawdos-setup
+
+    if [ ! -f "$CONFIGURED_MARKER" ]; then
+        echo ""
+        printf "  ${C7}Setup incomplete. Restarting in 5 seconds...${RST}\n"
+        sleep 5
+        exit 1
+    fi
+
+    load_env
+fi
+
+# ── Verify Claude Code installation ────────────────────────────
+if ! command -v claude &>/dev/null; then
+    echo ""
+    printf "  ${C1}Installing Claude Code...${RST}\n"
+    echo ""
+    curl -fsSL https://claude.ai/install.sh | bash
+
+    export PATH="$HOME/.local/bin:$HOME/.claude/local/bin:$PATH"
+
+    if ! command -v claude &>/dev/null; then
+        printf "  ${BOLD}ERROR:${RST} Failed to install Claude Code.\n"
+        printf "  Check your network connection.\n"
+        sleep 10
+        exit 1
+    fi
+fi
+
+# ── Network check ──────────────────────────────────────────────
+if ! wget -q --spider https://api.anthropic.com 2>/dev/null; then
+    printf "  ${C1}WARNING:${RST} Cannot reach api.anthropic.com\n"
+    sleep 2
+fi
+
+# ── Launch Claude Code ──────────────────────────────────────────
+claude
+
+# ── Exit / respawn animation ───────────────────────────────────
+if [ -x "$BOOT_ANIMATION" ]; then
+    "$BOOT_ANIMATION" shutdown
+else
+    echo ""
+    echo "  Claude Code exited. Restarting in 3 seconds..."
+    sleep 3
+fi

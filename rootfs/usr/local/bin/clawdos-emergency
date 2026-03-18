@@ -1,0 +1,52 @@
+#!/bin/bash
+# clawdOS Emergency Shell - Password-protected rescue shell on tty2
+set -euo pipefail
+
+PW_FILE="/etc/clawdos/emergency_pw"
+
+clear
+echo ""
+echo "  ╔══════════════════════════════════════════╗"
+echo "  ║       clawdOS Emergency Shell            ║"
+echo "  ╚══════════════════════════════════════════╝"
+echo ""
+echo "  This is a password-protected rescue shell."
+echo "  Use this if Claude Code is not functioning."
+echo ""
+
+# Check if password is set
+if [ ! -f "$PW_FILE" ]; then
+    echo "  WARNING: No emergency password configured."
+    echo "  Run clawdos-setup first on tty1."
+    echo ""
+    echo "  Press Enter to retry..."
+    read -r
+    exit 1
+fi
+
+# Password prompt
+stored_hash=$(cat "$PW_FILE")
+while true; do
+    read -rsp "  Password: " password
+    echo ""
+
+    # Extract algorithm and salt from the stored hash (e.g. "$6$salt$hash...")
+    # This handles any crypt(3) format: $id$salt$hash
+    hash_prefix="${stored_hash%\$*}"  # everything up to the last '$'
+    input_hash=$(echo "$password" | mkpasswd -m sha-512 -s --salt="${hash_prefix#\$6\$}")
+
+    if [ "$input_hash" = "$stored_hash" ]; then
+        echo ""
+        echo "  Access granted. Type 'exit' to return to this prompt."
+        echo ""
+        /bin/ash
+        clear
+        echo ""
+        echo "  Session ended. Press Enter for new login."
+        read -r
+        exit 0
+    else
+        echo "  Access denied."
+        sleep 2
+    fi
+done

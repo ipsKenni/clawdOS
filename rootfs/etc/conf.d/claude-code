@@ -1,0 +1,5 @@
+# Configuration for Claude Code service
+# Environment file location
+CLAUDE_ENV_FILE="/etc/clawdos/env"
+# Installation marker
+CLAUDE_CONFIGURED="/etc/clawdos/configured"
